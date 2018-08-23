@@ -36,7 +36,7 @@ func (p *Plugin) OnRegister() {
 		var adminUser user.User
 		db := media.IgnoreCallback(site.GetSystemDB().DB)
 		db.First(&adminUser, "name = ?", "admin")
-		if adminUser.ID == 0 {
+		if adminUser.ID == "" {
 			log.Info("Create System Administrator user")
 			var (
 				Auth         = e.Options().GetInterface(p.AuthKey).(*auth.Auth)
