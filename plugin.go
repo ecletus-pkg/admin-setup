@@ -13,7 +13,7 @@ import (
 	"github.com/ecletus/plug"
 	"github.com/moisespsena-go/aorm"
 	"github.com/moisespsena-go/default-logger"
-	"github.com/moisespsena/go-error-wrap"
+	"github.com/moisespsena-go/error-wrap"
 	"github.com/moisespsena-go/path-helpers"
 )
 
