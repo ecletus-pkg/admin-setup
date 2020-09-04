@@ -5,19 +5,21 @@ import (
 
 	"github.com/moisespsena-go/iolr"
 
-	"github.com/ecletus-pkg/site-setup"
+	site_setup "github.com/ecletus-pkg/site-setup"
 	"github.com/ecletus-pkg/user"
 	"github.com/ecletus/auth"
 	"github.com/ecletus/media/oss"
 	"github.com/ecletus/notification"
 	"github.com/ecletus/plug"
 	"github.com/moisespsena-go/aorm"
-	"github.com/moisespsena-go/default-logger"
-	"github.com/moisespsena-go/error-wrap"
-	"github.com/moisespsena-go/path-helpers"
+	defaultlogger "github.com/moisespsena-go/default-logger"
+	errwrap "github.com/moisespsena-go/error-wrap"
+	path_helpers "github.com/moisespsena-go/path-helpers"
 )
 
-var log = defaultlogger.NewLogger(path_helpers.GetCalledDir())
+var log = defaultlogger.GetOrCreateLogger(path_helpers.GetCalledDir())
+
+const AdminUser = "admin"
 
 type Plugin struct {
 	plug.EventDispatcher
@@ -25,10 +27,14 @@ type Plugin struct {
 }
 
 func (p *Plugin) RequireOptions() []string {
-	return []string{p.AuthKey, p.NotificationKey}
+	keys := []string{p.AuthKey}
+	if p.NotificationKey != "" {
+		keys = append(keys, p.NotificationKey)
+	}
+	return keys
 }
 
-func (p *Plugin) OnRegister() {
+func (p *Plugin) OnRegister(options *plug.Options) {
 	site_setup.OnRegister(p, func(e *site_setup.SiteSetupEvent) {
 		e.SetupCMD.Flags().StringP("admin-email", "E", "", "E-mail for admin user")
 		e.SetupCMD.Flags().StringP("admin-password", "P", "", "The Password. Use BLANK for generated password.")
@@ -38,14 +44,17 @@ func (p *Plugin) OnRegister() {
 		site := e.Site
 		var adminUser user.User
 		db := oss.IgnoreCallback(site.GetSystemDB().DB)
-		err = db.First(&adminUser, "name = ?", "admin").Error
-		if err != nil && aorm.IsRecordNotFoundError(err) {
+		err = db.First(&adminUser, "name = ?", user.AdminUserName).Error
+		if aorm.IsRecordNotFoundError(err) {
 			err = nil
 			log.Info("Create System Administrator user")
 			var (
 				Auth         = e.Options().GetInterface(p.AuthKey).(*auth.Auth)
-				Notification = e.Options().GetInterface(p.NotificationKey).(*notification.Notification)
+				Notification *notification.Notification
 			)
+			if p.NotificationKey != "" {
+				Notification = e.Options().GetInterface(p.NotificationKey).(*notification.Notification)
+			}
 			return user.CreateAdminUserIfNotExists(site, Auth, Notification, func() (string, error) {
 				adminEmail, err := e.SetupCMD.Flags().GetString("admin-email")
 				if err != nil {
@@ -56,7 +65,7 @@ func (p *Plugin) OnRegister() {
 					if err != nil {
 						return "", errwrap.Wrap(err, "Get admin-email from STDIN")
 					}
-					if !strings.Contains(adminEmail, "@") {
+					if !strings.ContainsRune(adminEmail, '@') {
 						log.Errorf("The %q isn't valid mail address. Try now.", adminEmail)
 						adminEmail = ""
 						continue
